@@ -1,0 +1,12 @@
+{
+  "name": "Mineradio",
+  "short_name": "Mineradio",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "description": "沉浸式音乐播放器",
+  "icons": [
+    { "src": "/assets/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
