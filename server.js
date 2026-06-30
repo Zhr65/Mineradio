@@ -3275,6 +3275,14 @@ async function getLoginInfo() {
     return { loggedIn: false, hasCookie: !!userCookie, vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP' };
   } catch (e) {
     console.warn('[Login] account check failed:', e.message);
+    // Railway / 海外 IP 环境：API 被拦但 cookie 来自用户手动导入，直接信任
+    if (process.env.COOKIE) {
+      return {
+        loggedIn: true, pendingProfile: true, hasCookie: true,
+        nickname: '网易云用户', avatar: '',
+        vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP',
+      };
+    }
     return { loggedIn: false, hasCookie: !!userCookie, vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP' };
   }
 }
