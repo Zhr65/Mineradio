@@ -61,9 +61,15 @@ const HOST = process.env.HOST || '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const TUNEHUB_KEY = 'th_cc2050cd463f4544c58cd583b8118787720febb59b410007';
 const TUNEHUB_BASE = 'https://tunehub.sayqz.com/api';
-const COOKIE_FILE = process.env.COOKIE_FILE || path.join(__dirname, '.cookie');
+const COOKIE_FILE = process.env.COOKIE_FILE || (function(){
+  var p = path.join(__dirname, '.cookie');
+  if (fs.existsSync(p)) return p;
+  var roaming = process.env.APPDATA || '';
+  if (roaming) { var rp = path.join(roaming, 'Mineradio', '.cookie'); if (fs.existsSync(rp)) return rp; }
+  return p;
+})();
 const QQ_COOKIE_FILE = process.env.QQ_COOKIE_FILE || path.join(__dirname, '.qq-cookie');
-const UPDATE_WORK_DIR = process.env.MINERADIO_UPDATE_DIR || "./updates" || path.join(__dirname, 'updates');
+const UPDATE_WORK_DIR = process.env.MINERADIO_UPDATE_DIR || path.join(__dirname, 'updates');
 const UPDATE_DOWNLOAD_DIR = process.env.MINERADIO_UPDATE_DOWNLOAD_DIR || path.join(UPDATE_WORK_DIR, 'downloads');
 const UPDATE_PATCH_BACKUP_DIR = process.env.MINERADIO_PATCH_BACKUP_DIR || path.join(UPDATE_WORK_DIR, 'backups', 'patches');
 const BEATMAP_CACHE_DIR = process.env.MINERADIO_BEAT_CACHE_DIR || 'D:\\MineradioCache\\beatmaps';
@@ -174,9 +180,11 @@ function rawCookieFallback(input) {
   if (Array.isArray(input) && input.every(item => typeof item === 'string')) return input.join('; ').trim();
   return '';
 }
-let userCookie = '';
-try { if (fs.existsSync(COOKIE_FILE)) userCookie = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); }
-catch (e) { userCookie = ''; }
+let userCookie = process.env.COOKIE || '';
+if (!userCookie) {
+  try { if (fs.existsSync(COOKIE_FILE)) userCookie = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); }
+  catch (e) { userCookie = ''; }
+}
 function saveCookie(c) {
   userCookie = normalizeCookieHeader(c) || rawCookieFallback(c);
   try { fs.writeFileSync(COOKIE_FILE, userCookie); } catch (e) {}
@@ -4011,15 +4019,16 @@ const server = http.createServer(async (req, res) => {
   // ---------- 从歌单移除歌曲 ----------
   if (pn === '/api/playlist/remove-song') {
     try {
-      const info = await requireLogin(res);
-      if (!info) return;
+      if (!userCookie) { sendJSON(res, { error: '请先在右上角登录网易云账号', removed: false }, 401); return; }
       const pid = url.searchParams.get('pid');
       const tid = url.searchParams.get('id');
       if (!pid || !tid) { sendJSON(res, { error: 'Missing pid or id' }, 400); return; }
       const r = await playlist_tracks({ op: 'del', pid: Number(pid), tracks: String(tid), cookie: userCookie, timestamp: Date.now() });
-      const code = (r.body && r.body.code) || r.code || 0;
-      if (code === 200) { sendJSON(res, { loggedIn: true, removed: true }); }
-      else { sendJSON(res, { error: '移除失败 (' + code + ')', removed: false }, 500); }
+      const bodyCode = (r.body && r.body.code);
+      const code = bodyCode !== undefined ? bodyCode : (r.code || 0);
+      if (code === 200 || code === 0) { sendJSON(res, { loggedIn: true, removed: true }); }
+      else if (code === 301 || code === 401 || code === 403) { sendJSON(res, { error: '没有权限删除此歌单中的歌曲（歌单不是你的）', removed: false }, 403); }
+      else { sendJSON(res, { error: '移除失败 (code:' + code + ')', removed: false }, 500); }
     } catch (err) { console.error('[RemoveSong]', err); sendJSON(res, { error: err.message }, 500); }
     return;
   }
